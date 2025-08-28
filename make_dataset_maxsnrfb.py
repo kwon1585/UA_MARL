@@ -184,15 +184,13 @@ def main():
     collector = DatasetCollector(env)
     
     # 데이터셋 수집
-    print(f"UA MaxSNR_fallback 데이터셋 수집 시작 (MaxSNRWithFallback + MaxSNR_fallback)...")
-    print(f"에피소드: {args.num_episodes}, UE: {args.num_ue}, SBS: {args.num_sbs}")
-    
+   
     dataset = collector.collect_dataset(args.num_episodes)
     
     # 데이터셋 저장
     collector.save_dataset(dataset, args.dataset_root)
     
-    print("UA MaxSNR_fallback 데이터셋 수집 완료!")
+    print("UA MaxSNR_fallback dataset is done!")
 
 if __name__ == "__main__":
     main()

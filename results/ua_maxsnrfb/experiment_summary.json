@@ -2,7 +2,6 @@
   "args": {
     "dataset_root": "datasets/ua_maxsnrfb",
     "logdir": "results",
-    "tag": "cmp",
     "seed": 1,
     "device": "cpu",
     "num_ue": 20,
@@ -27,12 +26,13 @@
       -30.0,
       70.0
     ],
-    "episode_length": 100,
     "num_episodes": 5,
     "eval_episodes": 20,
+    "episode_length": 100,
     "save_plots": true,
     "fc_model_dir": null,
-    "fc_train": true
+    "fc_train": true,
+    "fc_type": "standard"
   },
   "summary": {
     "episodes": 20,
@@ -45,13 +45,13 @@
       }
     },
     "fedcombo": {
-      "mean": 336515868228.851,
-      "std": 48388710941.12975,
+      "mean": 340692047869.93915,
+      "std": 53341313808.85386,
       "ci95": {
-        "low": 315308580615.29205,
-        "high": 357723155842.41
+        "low": 317314186347.533,
+        "high": 364069909392.3453
       }
     },
-    "avg_return_diff": -10288577639.728464
+    "avg_return_diff": -6112397998.640483
   }
 }

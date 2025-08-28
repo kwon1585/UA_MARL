@@ -1,4 +1,16 @@
 # ua_marl.py
+# UA Head-to-Head Compare with FedCombo (Standard/Federated)
+# 
+# 사용법:
+#   # 기존 FedCombo 사용
+#   python ua_marl.py --fc_train --fc_type standard
+#   
+#   # 연합학습 FedCombo 사용  
+#   python ua_marl.py --fc_train --fc_type federated
+#   
+#   # 저장된 모델 사용
+#   python ua_marl.py --fc_model_dir models/fedcombo --fc_type federated
+#
 from __future__ import annotations
 import argparse, os, json, csv, math
 import numpy as np
@@ -7,14 +19,14 @@ from typing import Dict, List, Tuple
 from ua_env import UAEnv, UAConfig
 from algorithms.max_snr import MaxSNRPolicy
 from algorithms.fed_combo import FedComboPolicy
+from algorithms.fed_combo_federated import FedComboFederatedPolicy
 
 # ---------- CLI(기존 유지; 옵션 추가 안 함) ----------
 def build_common_parser(desc: str = "UA Head-to-Head Compare"):
     p = argparse.ArgumentParser(description=desc)
     # paths
-    p.add_argument("--dataset_root", type=str, default="datasets/ua_mixed_reward")
+    p.add_argument("--dataset_root", type=str, default="datasets/ua_maxsnrfb")
     p.add_argument("--logdir", type=str, default="results")
-    p.add_argument("--tag", type=str, default="cmp", help="결과 폴더 태그")
     # env (UE == Agent)
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--device", type=str, default="cpu")
@@ -30,15 +42,17 @@ def build_common_parser(desc: str = "UA Head-to-Head Compare"):
     p.add_argument("--shadowing_std_db", type=float, default=6.0)
     p.add_argument("--fading_scale_db", type=float, default=3.0)
     p.add_argument("--snr_clip", type=float, nargs=2, default=[-30.0, 70.0])
-    p.add_argument("--episode_length", type=int, default=100)
     # dataset
     p.add_argument("--num_episodes", type=int, default=5)
     # eval/report
     p.add_argument("--eval_episodes", type=int, default=20)
+    p.add_argument("--episode_length", type=int, default=100)
     p.add_argument("--save_plots", action="store_true")
-    # fed-combo (기존 그대로; 새 옵션 추가 없음)
+    # fed-combo
     p.add_argument("--fc_model_dir", type=str, default=None)
     p.add_argument("--fc_train", action="store_true", help="비교 전 FedCombo 학습 실행")
+    p.add_argument("--fc_type", type=str, default="standard", choices=["standard", "federated"], 
+                   help="FedCombo 타입: standard(기존) 또는 federated(연합학습)")
     return p
 
 # ---------- 유틸 ----------
@@ -52,7 +66,13 @@ def get_dataset_name(dataset_root: str) -> str:
 
 def outdirs(args) -> Tuple[str, str]:
     dataset_name = get_dataset_name(args.dataset_root)
-    base = os.path.join(args.logdir, dataset_name)
+    
+    # FedCombo 타입에 따라 폴더 분리
+    if args.fc_type == "federated":
+        base = os.path.join(args.logdir, f"{dataset_name}_federated")
+    else:
+        base = os.path.join(args.logdir, dataset_name)
+    
     fig = os.path.join(base, "figs")
     ensure_dirs(base, fig)
     return base, fig
@@ -139,12 +159,15 @@ def head_to_head(env: UAEnv, pol_maxsnr, pol_fed, episodes: int, save_visualizat
             snr_db = env._draw_snr_db()
             obs = snr_db  # (U,S)
             a_max = pol_maxsnr.act(obs)
+            
             a_fed = pol_fed.act(obs)
 
             m_max = eval_on_snr(env, snr_db, a_max)
             m_fed = eval_on_snr(env, snr_db, a_fed)
             ret_max += m_max["sum_rate"]; ret_fed += m_fed["sum_rate"]
 
+
+            
             steps_rows.append({
                 "episode": ep, "step": t,
                 "maxsnr_sum_rate": m_max["sum_rate"],
@@ -284,11 +307,19 @@ def main():
     # 알고리즘 준비
     pol_max = MaxSNRPolicy().train()
     
-    # 온라인 학습 또는 오프라인 FedCombo 선택
-    pol_fed = FedComboPolicy(model_dir=args.fc_model_dir)
+    # FedCombo 정책 선택 (기존 또는 연합학습)
+    if args.fc_type == "federated":
+        print(f"[info] FedCombo-Federated 정책 사용")
+        pol_fed = FedComboFederatedPolicy(model_dir=args.fc_model_dir, num_ue=args.num_ue)
+    else:
+        print(f"[info] FedCombo-Standard 정책 사용")
+        pol_fed = FedComboPolicy(model_dir=args.fc_model_dir)
+    
     if args.fc_train:
-        pol_fed.train(dataset_files=ds_files, num_ue=args.num_ue, num_sbs=args.num_sbs,
-                      seed=args.seed, device=args.device)
+        if args.fc_type == "federated":
+            pol_fed.train(dataset_files=ds_files, num_sbs=args.num_sbs, device=args.device)
+        else:
+            pol_fed.train(dataset_files=ds_files, num_ue=args.num_ue, num_sbs=args.num_sbs, seed=args.seed, device=args.device)
 
     # 동일 환경에서 헤드-투-헤드
     env = build_env(args)

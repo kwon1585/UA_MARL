@@ -1,0 +1,57 @@
+{
+  "args": {
+    "dataset_root": "datasets/ua_maxsnrfb",
+    "logdir": "results",
+    "seed": 1,
+    "device": "cpu",
+    "num_ue": 20,
+    "num_sbs": 3,
+    "beam_limits": [
+      2,
+      3,
+      3
+    ],
+    "area_size": [
+      100.0,
+      100.0
+    ],
+    "carrier_ghz": 28.0,
+    "bandwidth_mhz": 100.0,
+    "noise_figure_db": 7.0,
+    "tx_power_dbm": 30.0,
+    "pathloss_exp": 2.0,
+    "shadowing_std_db": 6.0,
+    "fading_scale_db": 3.0,
+    "snr_clip": [
+      -30.0,
+      70.0
+    ],
+    "num_episodes": 5,
+    "eval_episodes": 20,
+    "episode_length": 100,
+    "save_plots": true,
+    "fc_model_dir": null,
+    "fc_train": true,
+    "fc_type": "federated"
+  },
+  "summary": {
+    "episodes": 20,
+    "maxsnr": {
+      "mean": 346804445868.5796,
+      "std": 50921761142.0482,
+      "ci95": {
+        "low": 324487000056.84467,
+        "high": 369121891680.3145
+      }
+    },
+    "fedcombo": {
+      "mean": 347189506812.9335,
+      "std": 52256718331.13609,
+      "ci95": {
+        "low": 324286990216.91547,
+        "high": 370092023408.9515
+      }
+    },
+    "avg_return_diff": 385060944.353775
+  }
+}

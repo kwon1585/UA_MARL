@@ -5,6 +5,7 @@ from typing import Tuple, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from algorithms.max_snr import MaxSNRPolicy
 
 @dataclass
 class UAConfig:
@@ -271,35 +272,56 @@ class UAEnv:
 
     def _compute_mixed_rewards(self, actions: np.ndarray, snr_db: np.ndarray, admitted: np.ndarray, per_ue_rate: np.ndarray, lambda_weight: float):
         """
-        Mixed Reward 계산: r̃_i = λr_i + (1-λ)D_i
-        D_i = G_t - G_t^(-i) (UE i가 서빙 안함 vs 서빙함의 차이)
-        클리핑과 스케일링 제거하여 원본 값 그대로 사용
+        개선된 Mixed Reward 계산: 로그 스케일링 + 정규화 + 비선형 결합
+        r̃_i = sqrt(personal_reward² + joint_reward²)
         """
         U = self.cfg.num_ue
         mixed_rewards = np.zeros(U, dtype=np.float32)
+        
+        # Max-SNR 정책 준비
+        max_snr_policy = MaxSNRPolicy()
         
         # 현재 전체 시스템 성능 (G_t)
         current_sum_rate = float(per_ue_rate.sum())
         
         for i in range(U):
-            # UE i의 원래 리워드 (r_i) - 원본 값 그대로 사용
+            # UE i의 원래 리워드 (r_i)
             original_reward = float(per_ue_rate[i])
             
-            # UE i가 서빙 안함일 때의 시스템 성능 계산 (G_t^(-i))
-            # UE i의 행동을 0(서빙 안함)으로 변경
+            # UE i가 서빙 안함일 때 Max-SNR으로 최적화
             actions_modified = actions.copy()
-            actions_modified[i] = 0
+            actions_modified[i] = 0  # UE i 연결 해제
+            
+            # Max-SNR 정책으로 최적 액션 재계산
+            optimal_actions = max_snr_policy.act(snr_db)
+            actions_modified[i] = optimal_actions[i]  # Max-SNR 기반 최적 선택
             
             # 수정된 행동으로 성능 재계산
             admitted_modified, _ = self._apply_beam_limits(actions_modified, snr_db)
             _, per_ue_rate_modified = self._compute_rates(snr_db, admitted_modified)
             modified_sum_rate = float(per_ue_rate_modified.sum())
             
-            # 차이 리워드 계산 (D_i = G_t - G_t^(-i)) - 원본 값 그대로 사용
+            # 차이 리워드: 현재 vs Max-SNR 기반 최적
             difference_reward = current_sum_rate - modified_sum_rate
             
-            # Mixed reward 계산: r̃_i = λr_i + (1-λ)D_i (원본 값 그대로)
-            mixed_rewards[i] = lambda_weight * original_reward + (1 - lambda_weight) * difference_reward
+            # 개선된 리워드 계산: 로그 스케일링 + 정규화 + 비선형 결합
+            
+            # 1. 개인 리워드: 로그 스케일링으로 극단값 방지
+            if original_reward > 0:
+                personal_reward = np.log10(np.maximum(original_reward, 1e6))  # 6~9 범위
+            else:
+                personal_reward = 0.0  # 0일 때는 0
+            
+            # 2. 조인트 리워드: 차이를 -1~1 범위로 정규화 (tanh 사용)
+            # 차이가 너무 클 수 있으므로 스케일링 계수 조정
+            scale_factor = max(1e8, abs(difference_reward) * 0.1)  # 적응적 스케일링
+            joint_reward = np.tanh(difference_reward / scale_factor)  # -1~1 범위
+            
+            # 3. 비선형 결합: 유클리드 거리 기반
+            if personal_reward == 0 and joint_reward == 0:
+                mixed_rewards[i] = 0.0
+            else:
+                mixed_rewards[i] = np.sign(personal_reward + joint_reward) * np.sqrt(personal_reward**2 + joint_reward**2)
         
         return mixed_rewards
 

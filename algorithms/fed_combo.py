@@ -71,26 +71,22 @@ class FedComboPolicy:
         self.lr_q = 1e-3
         self.batch_size = 64
         self.epochs_wm = 100
-        self.epochs_q = 100
+        self.epochs_q = 300
         
-        # 정규화 파라미터 (데이터 기반으로 동적 계산)
+        # 정규화 파라미터 (SNR만, 보상은 원본 그대로 사용)
         self.snr_mean = 0.0
         self.snr_std = 1.0
-        self.reward_mean = 0.0
-        self.reward_std = 1.0
         
     def _compute_normalization_stats(self, dataset_files: List[str]) -> None:
         """데이터셋 전체에서 정규화 통계 계산"""
         print("[FedCombo] 정규화 통계 계산 중...")
         
         all_snr = []
-        all_rewards = []
         
         for file_path in dataset_files:
             if os.path.exists(file_path):
                 data = np.load(file_path)
                 all_snr.extend(data['obs'].flatten())
-                all_rewards.extend(data['reward'].flatten())
         
         if all_snr:
             self.snr_mean = float(np.mean(all_snr))
@@ -103,27 +99,16 @@ class FedComboPolicy:
                 self.snr_std = max(0.1, abs(self.snr_mean) * 0.1)
                 print(f"[FedCombo] SNR 범위가 좁음, 표준편차를 {self.snr_std:.4f}로 조정")
         
-        if all_rewards:
-            self.reward_mean = float(np.mean(all_rewards))
-            self.reward_std = float(np.std(all_rewards))
-            if self.reward_std < 1e-8:
-                self.reward_std = 1.0
-                print(f"[FedCombo] 보상 표준편차가 너무 작음, 1.0으로 설정")
-            elif self.reward_std < 0.1:
-                # 보상 범위가 너무 좁으면 표준편차를 인위적으로 확대
-                self.reward_std = max(0.1, abs(self.reward_mean) * 0.1)
-                print(f"[FedCombo] 보상 범위가 좁음, 표준편차를 {self.reward_std:.4f}로 조정")
-        
         print(f"[FedCombo] SNR: mean={self.snr_mean:.4f}, std={self.snr_std:.4f}")
-        print(f"[FedCombo] 보상: mean={self.reward_mean:.4f}, std={self.reward_std:.4f}")
+        print(f"[FedCombo] 보상 정규화 제거 - 원본 보상 그대로 사용")
     
     def _normalize_snr(self, snr_db: np.ndarray) -> np.ndarray:
         """SNR Z-score 정규화"""
         return (snr_db - self.snr_mean) / self.snr_std
     
     def _normalize_reward(self, reward: np.ndarray) -> np.ndarray:
-        """보상 Z-score 정규화"""
-        return (reward - self.reward_mean) / self.reward_std
+        """보상 정규화 제거 - 원본 보상 그대로 사용"""
+        return reward.astype(np.float32)
     
 
     
@@ -245,7 +230,7 @@ class FedComboPolicy:
         obs_norm = self._normalize_snr(obs.reshape(1, -1))
         obs_tensor = torch.tensor(obs_norm, dtype=torch.float32).to(device)
         
-        best_action = 1  # 기본값을 1로 변경 (첫 번째 SBS)
+        best_action = 0
         best_total_reward = float('-inf')
         
         # 가능한 모든 액션에 대해 planning
@@ -306,7 +291,7 @@ class FedComboPolicy:
         q_network.train()
         best_loss = float('inf')
         patience_counter = 0
-        patience = 3  # 연속으로 3번 loss가 안 낮아지면 중단
+        patience = 10  # 연속으로 3번 loss가 안 낮아지면 중단
         
         for epoch in range(self.epochs_q):
             total_loss = 0.0
@@ -445,9 +430,6 @@ class FedComboPolicy:
                     # World Model의 예측을 그대로 사용 (액션 0 포함)
                     actions[ue_id] = planned_action
                     
-                    # 디버깅 로그 (처음 3개 UE만)
-                    if ue_id < 3:
-                        print(f"UE {ue_id}: World Model 액션 선택: {planned_action}")
                         
                 except Exception as e:
                     # World Model 예측 실패 시 Max-SNR fallback
@@ -469,12 +451,10 @@ class FedComboPolicy:
         save_dict = {
             'num_ue': self.num_ue,
             'ue_models': {},
-                    'normalization': {
-            'snr_mean': self.snr_mean,
-            'snr_std': self.snr_std,
-            'reward_mean': self.reward_mean,
-            'reward_std': self.reward_std
-        }
+            'normalization': {
+                'snr_mean': self.snr_mean,
+                'snr_std': self.snr_std
+            }
         }
         
         for ue_id, ue_model in self.ue_models.items():
@@ -505,14 +485,12 @@ class FedComboPolicy:
             
         checkpoint = torch.load(model_path, map_location='cpu')
         
-        # 정규화 파라미터 복원
+        # 정규화 파라미터 복원 (SNR만)
         if 'normalization' in checkpoint:
             norm = checkpoint['normalization']
             self.snr_mean = norm.get('snr_mean', self.snr_mean)
             self.snr_std = norm.get('snr_std', self.snr_std)
-            self.reward_mean = norm.get('reward_mean', self.reward_mean)
-            self.reward_std = norm.get('reward_std', self.reward_std)
-            print(f"[FedCombo] 정규화 설정 복원: SNR(mean={self.snr_mean:.4f}, std={self.snr_std:.4f}), 보상(mean={self.reward_mean:.4f}, std={self.reward_std:.4f})")
+            print(f"[FedCombo] 정규화 설정 복원: SNR(mean={self.snr_mean:.4f}, std={self.snr_std:.4f})")
         
         # UE별 모델 복원
         for ue_id_str, ue_checkpoint in checkpoint['ue_models'].items():

@@ -1,0 +1,25 @@
+=== UA Mixed Reward Dataset Quality Report ===
+
+Dataset Configuration:
+  - Number of UEs: 20
+  - Number of SBSs: 3
+  - Episodes: 5
+  - Episode length: 100
+  - Total samples: 500
+
+Policy Distribution:
+  - Random: 2000 samples
+  - EpsilonGreedy: 4000 samples
+  - LoadBalancing: 4000 samples
+
+Data Diversity Analysis:
+  - SNR range: -0.47 to 66.07 dB
+  - SNR std: 9.41 dB
+  - Action distribution: {np.int64(0): np.int64(3600), np.int64(1): np.int64(1962), np.int64(2): np.int64(2009), np.int64(3): np.int64(2429)}
+  - Mixed Reward range: -1.00e+00 to 9.13e+00
+  - Mixed Reward std: 4.11e+00
+  - Mixed Reward mean: 2.46e+00
+  - System Mixed Reward range: 2.46e+01 to 7.13e+01
+  - System Mixed Reward mean: 4.92e+01
+  - Episodes covered: 5
+  - Samples per episode: 2000.0

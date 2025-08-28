@@ -1,0 +1,57 @@
+{
+  "args": {
+    "dataset_root": "datasets/ua_mixed",
+    "logdir": "results",
+    "tag": "cmp",
+    "seed": 1,
+    "device": "cpu",
+    "num_ue": 20,
+    "num_sbs": 3,
+    "beam_limits": [
+      2,
+      3,
+      3
+    ],
+    "area_size": [
+      100.0,
+      100.0
+    ],
+    "carrier_ghz": 28.0,
+    "bandwidth_mhz": 100.0,
+    "noise_figure_db": 7.0,
+    "tx_power_dbm": 30.0,
+    "pathloss_exp": 2.0,
+    "shadowing_std_db": 6.0,
+    "fading_scale_db": 3.0,
+    "snr_clip": [
+      -30.0,
+      70.0
+    ],
+    "episode_length": 100,
+    "num_episodes": 5,
+    "eval_episodes": 20,
+    "save_plots": true,
+    "fc_model_dir": null,
+    "fc_train": true
+  },
+  "summary": {
+    "episodes": 20,
+    "maxsnr": {
+      "mean": 346804445868.5796,
+      "std": 50921761142.0482,
+      "ci95": {
+        "low": 324487000056.84467,
+        "high": 369121891680.3145
+      }
+    },
+    "fedcombo": {
+      "mean": 304630901269.5775,
+      "std": 61138511793.808754,
+      "ci95": {
+        "low": 277835767060.40826,
+        "high": 331426035478.74677
+      }
+    },
+    "avg_return_diff": -42173544599.002174
+  }
+}
